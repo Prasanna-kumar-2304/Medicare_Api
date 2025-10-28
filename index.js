@@ -17,6 +17,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Simple request logger to help debug requests on Render logs
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // Connect to MongoDB Atlas
 mongoose.connect("mongodb+srv://medicare:healthcareapp@cluster0.8t4xx.mongodb.net/Healthcarebot?retryWrites=true&w=majority&appName=Cluster0")
   .then(() => console.log("✅ MongoDB connected"))
@@ -384,6 +390,20 @@ app.get('/api/user', async (req, res) => {
     console.error('Error fetching user by email:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
+});
+
+// Root API endpoint - useful for checking if service is up
+app.get('/api', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Medicare API is running' });
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: Date.now(),
+  });
 });
 
 // Logout user API

@@ -27,6 +27,9 @@ const userSchema = new mongoose.Schema({
   uname: String,
   umail: String,
   upassword: String,
+  phone: { type: String, default: '' },
+  address: { type: String, default: '' },
+  pincode: { type: String, default: '' },
   userType: {
     type: String,
     enum: ['patient', 'doctor', 'admin'],
@@ -50,6 +53,8 @@ const appointmentSchema = new mongoose.Schema({
   specialization: String,
   date: String,
   time: String,
+  // times proposed by doctor for this appointment (patient can choose)
+  proposedTimes: { type: [String], default: [] },
   status: {
     type: String,
     default: 'confirmed'
@@ -69,23 +74,29 @@ const appointmentSchema = new mongoose.Schema({
 const Appointment = mongoose.model('Appointment', appointmentSchema);
 
 const doctorSchema = new mongoose.Schema({
-  name: String,
-  specialization: String,
+  name: { type: String, required: true },
+  specialization: { type: String, required: true },
   speciality: String,
-  hospital: String,
-  location: String,
-  experience: String,
-  rating: Number,
-  available: Boolean,
+  hospital: { type: String, default: '' },
+  location: { type: String, default: '' },
+  experience: { type: String, default: '' },
+  rating: { type: Number, default: 4.5 },
+  available: { type: Boolean, default: true },
   slots: [String],  // Keep default slots
   dateSlots: {      // Add date-specific slots
     type: Map,
     of: [String]
   },
-  online: {
-    type: Boolean,
-    default: false
-  }
+  gender: { type: String, default: '' },
+  dob: { type: String, default: '' },
+  phone: { type: String, default: '' },
+  email: { type: String, default: '' },
+  qualification: { type: String, default: '' },
+  college: { type: String, default: '' },
+  graduationYear: { type: String, default: '' },
+  registrationNumber: { type: String, default: '' },
+  role: { type: String, default: '' },
+  online: { type: Boolean, default: false }
 });
 
 const Doctor = mongoose.model('Doctor', doctorSchema);
@@ -355,6 +366,26 @@ app.post("/api/login_user", async (req, res) => {
   }
 });
 
+// Get user by email (umail)
+app.get('/api/user', async (req, res) => {
+  try {
+    const { umail } = req.query;
+    if (!umail) {
+      return res.status(400).json({ message: 'umail query parameter is required' });
+    }
+
+    const user = await User.findOne({ umail });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('Error fetching user by email:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // Logout user API
 app.post("/api/logout", async (req, res) => {
   try {
@@ -389,7 +420,7 @@ app.post("/api/doctors", async (req, res) => {
     
     const { hospital, location, experience, rating, available, slots } = req.body;
     
-    // Create new doctor document
+    // Create new doctor document with all fields
     const newDoctor = new Doctor({
       name,
       specialization,
@@ -398,7 +429,17 @@ app.post("/api/doctors", async (req, res) => {
       experience: experience || "",
       rating: rating || 4.5,
       available: available !== undefined ? available : true,
-      slots: slots || ["10:00 AM", "11:30 AM", "2:00 PM"]
+      slots: slots || ["10:00 AM", "11:30 AM", "2:00 PM"],
+      gender: req.body.gender || "",
+      dob: req.body.dob || "",
+      phone: req.body.phone || "",
+      email: req.body.email || "",
+      qualification: req.body.qualification || "",
+      college: req.body.college || "",
+      graduationYear: req.body.graduationYear || "",
+      registrationNumber: req.body.registrationNumber || "",
+      role: req.body.role || "",
+      dateSlots: req.body.dateSlots || {}
     });
     
     // Save to database
@@ -414,6 +455,32 @@ app.post("/api/doctors", async (req, res) => {
   } catch (err) {
     console.error("Error adding doctor:", err);
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// Update existing doctor by id
+app.put('/api/doctors/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const update = req.body || {};
+
+    console.log(`Received request to update doctor ${id}:`, update);
+
+    // Ensure we are not accidentally trying to change the _id
+    if (update._id) delete update._id;
+
+    const updatedDoctor = await Doctor.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+
+    if (!updatedDoctor) {
+      console.warn(`Doctor with id ${id} not found for update`);
+      return res.status(404).json({ message: `Doctor with id ${id} not found` });
+    }
+
+    console.log('Doctor updated successfully:', updatedDoctor);
+    return res.status(200).json(updatedDoctor);
+  } catch (err) {
+    console.error('Error updating doctor:', err);
+    return res.status(500).json({ message: 'Server error updating doctor', error: err.message });
   }
 });
 
@@ -436,6 +503,33 @@ app.get("/api/doctors/online", async (req, res) => {
   } catch (err) {
     console.error("Error fetching online doctors:", err);
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// Update user by id (profile update)
+app.put('/api/user/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const update = req.body || {};
+
+    // Prevent changing _id
+    if (update._id) delete update._id;
+
+    // Validate email if present
+    if (update.umail && typeof update.umail !== 'string') {
+      return res.status(400).json({ message: 'Invalid umail' });
+    }
+
+    // Find and update
+    const updatedUser = await User.findByIdAndUpdate(id, update, { new: true, runValidators: true });
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json(updatedUser);
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
@@ -543,6 +637,68 @@ app.put("/api/appointments/:appointmentId", async (req, res) => {
   } catch (err) {
     console.error("Error updating appointment:", err);
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// Doctor proposes multiple times for an appointment (patient will pick one)
+app.put('/api/appointments/:appointmentId/proposed-times', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { proposedTimes } = req.body;
+
+    if (!Array.isArray(proposedTimes)) {
+      return res.status(400).json({ message: 'proposedTimes must be an array of time strings' });
+    }
+
+    const updated = await Appointment.findByIdAndUpdate(
+      appointmentId,
+      { proposedTimes },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    // Notify patient and doctor
+    io.to(updated.userId).emit('appointment:proposed-times', { appointmentId, proposedTimes });
+    io.to(updated.doctorId).emit('appointment:proposed-times', { appointmentId, proposedTimes });
+
+    res.status(200).json({ status: 'success', appointment: updated });
+  } catch (err) {
+    console.error('Error updating proposed times:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Patient (or doctor) finalizes a scheduled time for the appointment
+app.put('/api/appointments/:appointmentId/schedule', async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { time } = req.body;
+
+    if (!time) {
+      return res.status(400).json({ message: 'time is required' });
+    }
+
+    const updated = await Appointment.findByIdAndUpdate(
+      appointmentId,
+      { time, proposedTimes: [] },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    // Notify both parties that appointment has been scheduled
+    io.to(updated.userId).emit('appointment:scheduled', updated);
+    io.to(updated.doctorId).emit('appointment:scheduled', updated);
+
+    res.status(200).json({ status: 'success', appointment: updated });
+  } catch (err) {
+    console.error('Error scheduling appointment:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 

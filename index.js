@@ -630,6 +630,24 @@ app.get("/api/appointments/doctor/:doctorId", async (req, res) => {
   }
 });
 
+// Get appointments by doctor name (case-insensitive) - useful when doctor id isn't available
+app.get('/api/appointments/doctor-by-name', async (req, res) => {
+  try {
+    const { name } = req.query;
+    if (!name) {
+      return res.status(400).json({ message: 'name query parameter is required' });
+    }
+
+    // Case-insensitive exact match on doctorName
+    const regex = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    const appointments = await Appointment.find({ doctorName: { $regex: regex } });
+    res.status(200).json(appointments);
+  } catch (err) {
+    console.error('Error fetching appointments by doctor name:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // Update appointment status
 app.put("/api/appointments/:appointmentId", async (req, res) => {
   try {

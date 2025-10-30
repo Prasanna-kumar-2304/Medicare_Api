@@ -638,10 +638,13 @@ app.get('/api/appointments/doctor-by-name', async (req, res) => {
       return res.status(400).json({ message: 'name query parameter is required' });
     }
 
-    // Case-insensitive exact match on doctorName
-    const regex = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
-    const appointments = await Appointment.find({ doctorName: { $regex: regex } });
-    res.status(200).json(appointments);
+  // Normalize whitespace and perform a case-insensitive substring match on doctorName
+  const normalized = name.trim().replace(/\s+/g, ' ');
+  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Use substring match (no anchors) so partial/extra titles still match
+  const regex = new RegExp(escaped, 'i');
+  const appointments = await Appointment.find({ doctorName: { $regex: regex } });
+    res.status(200).json(appointments); 
   } catch (err) {
     console.error('Error fetching appointments by doctor name:', err);
     res.status(500).json({ message: 'Server error', error: err.message });

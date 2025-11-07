@@ -48,6 +48,25 @@ const userSchema = new mongoose.Schema({
   lastActive: Date
 }); 
 
+// Add password verification method
+userSchema.methods.verifyPassword = function(password) {
+  return this.upassword === password; // Direct comparison for now, should use bcrypt in production
+};
+
+// Add token generation method
+userSchema.methods.generateAuthToken = function() {
+  return new Promise((resolve, reject) => {
+    try {
+      // Generate a simple token using userId and timestamp
+      // In production, you should use jwt.sign() with a proper secret
+      const token = Buffer.from(`${this._id}:${Date.now()}`).toString('base64');
+      resolve(token);
+    } catch (err) {
+      reject(err);
+    }
+  });
+};
+
 const User = mongoose.model("User", userSchema);
 
 // Define the appointment schema

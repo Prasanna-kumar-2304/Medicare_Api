@@ -373,8 +373,8 @@ app.post("/api/login_user", async (req, res) => {
       });
     }
 
-    // Verify password
-    const isPasswordValid = await user.verifyPassword(upassword);
+    // Simple password verification
+    const isPasswordValid = user.upassword === upassword;
     if (!isPasswordValid) {
       console.log("Invalid password for user:", umail);
       return res.status(401).json({
@@ -383,8 +383,8 @@ app.post("/api/login_user", async (req, res) => {
       });
     }
 
-    // Generate JWT token
-    const token = await user.generateAuthToken();
+    // Generate simple token
+    const token = Buffer.from(`${user._id}:${Date.now()}`).toString('base64');
 
     // Update user's online status
     await User.findByIdAndUpdate(user._id, { 
@@ -393,11 +393,16 @@ app.post("/api/login_user", async (req, res) => {
     });
       
     console.log("Login successful:", { id: user._id, name: user.uname, email: user.umail });
+    
+    // Include userType as role in the response
+    const userData = user.toObject();
+    userData.role = userData.userType || 'patient'; // Map userType to role
+    
     res.status(200).json({
       status_code: 200,
       message: "Login successful",
       token: token,
-      user: user
+      user: userData
     });
   } catch (err) {
     console.error("Login error:", err);

@@ -344,31 +344,49 @@ const bookAppointment = async (doctorId, date, time, patientInfo) => {
 app.post("/api/login_user", async (req, res) => {
   try {
     const { umail, upassword } = req.body;
-    const user = await User.findOne({ umail, upassword });
+    const user = await User.findOne({ umail });
 
-    if (user) {
-      // Update user's online status
-      await User.findByIdAndUpdate(user._id, { 
-        online: true,
-        lastActive: new Date()
-      });
-      
-      console.log("Login successful:", user);
-      res.status(200).json({
-        status_code: 200,
-        message: "Login successful",
-        user: user,
-      });
-    } else {
-      console.log("Invalid credentials");
-      res.status(401).json({
+    if (!user) {
+      console.log("User not found:", umail);
+      return res.status(401).json({
         status_code: 401,
-        message: "Invalid email or password",
+        message: "Invalid email or password"
       });
     }
+
+    // Verify password
+    const isPasswordValid = await user.verifyPassword(upassword);
+    if (!isPasswordValid) {
+      console.log("Invalid password for user:", umail);
+      return res.status(401).json({
+        status_code: 401,
+        message: "Invalid email or password"
+      });
+    }
+
+    // Generate JWT token
+    const token = await user.generateAuthToken();
+
+    // Update user's online status
+    await User.findByIdAndUpdate(user._id, { 
+      online: true,
+      lastActive: new Date()
+    });
+      
+    console.log("Login successful:", { id: user._id, name: user.uname, email: user.umail });
+    res.status(200).json({
+      status_code: 200,
+      message: "Login successful",
+      token: token,
+      user: user
+    });
   } catch (err) {
-    console.error("Server error:", err);
-    res.status(500).json({ message: "Server error", error: err });
+    console.error("Login error:", err);
+    res.status(500).json({ 
+      status_code: 500,
+      message: "Server error", 
+      error: err.message 
+    });
   }
 });
 
